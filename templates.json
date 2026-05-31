@@ -1,0 +1,75 @@
+{
+  "price_inquiry": {
+    "keywords": [
+      "价格",
+      "报价",
+      "多少钱",
+      "费用",
+      "收费",
+      "价钱",
+      "价位",
+      "预算"
+    ],
+    "subject": "Re: {subject}",
+    "body": "您好，\n\n感谢您的询价。\n\n关于{keyword_context}，我们的报价如下：\n\n{details}\n\n如需进一步了解或有其他问题，欢迎随时联系。\n\n此致\n敬礼\n\n{signature}"
+  },
+  "collaboration": {
+    "keywords": [
+      "合作",
+      "商务",
+      "洽谈",
+      "代理",
+      "合伙",
+      "联盟",
+      "加盟",
+      "招商"
+    ],
+    "subject": "Re: {subject}",
+    "body": "您好，\n\n感谢您的合作邀约。\n\n我们对{keyword_context}很感兴趣，希望能进一步沟通具体细节。请问您方便安排一个时间深入聊聊吗？\n\n期待您的回复。\n\n此致\n敬礼\n\n{signature}"
+  },
+  "complaint": {
+    "keywords": [
+      "投诉",
+      "不满",
+      "差评",
+      "退款",
+      "退货",
+      "质量问题",
+      "故障",
+      "错误",
+      "出错",
+      "不好用"
+    ],
+    "subject": "Re: {subject}",
+    "body": "您好，\n\n收到您的反馈，我们对{keyword_context}给您带来的不便深表歉意。\n\n我们已经记录下您的问题，会尽快核实并给您一个满意的答复。预计在1-2个工作日内给您回复处理方案。\n\n感谢您的耐心与理解。\n\n此致\n敬礼\n\n{signature}"
+  },
+  "thank_you": {
+    "keywords": [
+      "感谢",
+      "谢谢",
+      "感恩",
+      "感激",
+      "多谢"
+    ],
+    "subject": "Re: {subject}",
+    "body": "您好，\n\n不客气！很高兴能为您提供帮助。\n\n如果今后有任何问题，欢迎随时联系我们。\n\n此致\n敬礼\n\n{signature}"
+  },
+  "meeting_request": {
+    "keywords": [
+      "会议",
+      "见面",
+      "约",
+      "拜访",
+      "面谈",
+      "会面",
+      "开会"
+    ],
+    "subject": "Re: {subject}",
+    "body": "您好，\n\n收到您的会议邀约。关于{keyword_context}，以下是几个可选时间：\n\n- {date_option_1}\n- {date_option_2}\n- {date_option_3}\n\n请问哪个时间比较方便？如果都不合适，也欢迎您提出其他时间。\n\n期待与您会面。\n\n此致\n敬礼\n\n{signature}"
+  },
+  "general": {
+    "keywords": [],
+    "subject": "Re: {subject}",
+    "body": "您好，\n\n来信收悉。\n\n关于{keyword_context}，我们已经收到您的信息，处理完毕后会及时与您联系。\n\n此致\n敬礼\n\n{signature}"
+  }
+}
