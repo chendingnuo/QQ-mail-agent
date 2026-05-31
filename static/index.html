@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EduAdmin AI 邮件管理系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#4361EE',
+                        secondary: '#F1F5F9',
+                        dark: '#1E293B',
+                        muted: '#64748B',
+                        success: '#10B981',
+                        warning: '#F59E0B',
+                        danger: '#EF4444',
+                        bg: '#F8FAFC'
+                    },
+                    fontFamily: { inter: ['Inter', 'system-ui', 'sans-serif'] },
+                    borderRadius: { 'xl': '12px', '2xl': '16px' }
+                }
+            }
+        }
+    </script>
+    <style>
+        * { font-family: 'Inter', system-ui, sans-serif; }
+        body { background: #F8FAFC; }
+        .card-shadow { box-shadow: 0 2px 12px rgba(0,0,0,0.05); }
+        .hover-scale { transition: transform 0.2s ease, background-color 0.2s ease; }
+        .hover-scale:hover { transform: scale(1.02); }
+        .fade-enter-active, .fade-leave-active { transition: opacity 0.2s; }
+        .fade-enter-from, .fade-leave-to { opacity: 0; }
+        .slide-enter-active, .slide-leave-active { transition: all 0.25s ease; }
+        .slide-enter-from, .slide-leave-to { opacity: 0; transform: translateX(10px); }
+        .scrollbar-thin::-webkit-scrollbar { width: 4px; }
+        .scrollbar-thin::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 2px; }
+        .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+        .btn-primary { @apply bg-primary text-white font-medium rounded-xl py-3 hover:bg-primary/90 transition-all duration-200; }
+        .btn-secondary { @apply bg-secondary text-dark font-medium rounded-xl py-3 hover:bg-secondary/80 transition-all duration-200; }
+        .nav-item { @apply flex items-center justify-between rounded-xl p-3 transition-all duration-200 cursor-pointer; }
+        .nav-item.active { @apply bg-primary text-white; }
+        .nav-item.inactive { @apply bg-white text-muted hover:bg-secondary; }
+        .tab-btn { @apply font-medium pb-1 transition-all duration-200 cursor-pointer; }
+        .tab-btn.active { @apply text-primary border-b-2 border-primary; }
+        .tab-btn.inactive { @apply text-muted hover:text-dark; }
+        .msg-ai { @apply bg-secondary rounded-2xl rounded-tl-none p-4 max-w-[85%]; }
+        .msg-user { @apply bg-primary text-white rounded-2xl rounded-tr-none p-4 max-w-[85%] ml-auto; }
+    </style>
+</head>
+<body>
+<div id="app" class="font-inter text-dark min-h-screen">
+    <!-- 加载遮罩 -->
+    <div v-if="loading" class="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+        <div class="bg-white rounded-2xl p-8 flex flex-col items-center gap-4 card-shadow">
+            <div class="w-12 h-12 border-4 border-primary/30 border-t-primary rounded-full animate-spin"></div>
+            <p class="text-muted">{{ loadingText }}</p>
+        </div>
+    </div>
+
+    <!-- 主布局 -->
+    <div class="flex h-screen p-6 gap-6">
+
+        <!-- ========== 左侧面板 ========== -->
+        <div class="w-[280px] flex flex-col gap-6">
+
+            <!-- 用户信息 -->
+            <div class="flex items-center gap-3 p-2">
+                <div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                    <i class="fa-solid fa-robot text-primary text-xl"></i>
+                </div>
+                <div>
+                    <h2 class="text-lg font-semibold">EduAdmin AI</h2>
+                    <div class="flex items-center gap-1 text-xs text-muted">
+                        <span class="w-2 h-2 rounded-full" :class="serverOnline ? 'bg-success' : 'bg-danger'"></span>
+                        {{ serverOnline ? '服务运行中' : '连接断开' }}
+                    </div>
+                </div>
+            </div>
+
+            <!-- 统计卡片 -->
+            <div class="grid grid-cols-2 gap-4">
+                <div class="bg-primary text-white rounded-2xl p-5 hover-scale">
+                    <p class="text-sm font-medium mb-2">未读邮件</p>
+                    <p class="text-3xl font-bold">{{ stats.unseen_count }}</p>
+                </div>
+                <div class="bg-secondary rounded-2xl p-5 hover-scale">
+                    <p class="text-sm font-medium mb-2 text-muted">AI草稿</p>
+                    <p class="text-3xl font-bold">{{ stats.ai_drafts_count }}</p>
+                </div>
+            </div>
+
+            <!-- 导航菜单 -->
+            <div class="flex flex-col gap-2">
+                <div class="nav-item" :class="currentTab === 'inbox' ? 'active' : 'inactive'" @click="currentTab='inbox'; selectedItem=null">
+                    <div class="flex items-center gap-3">
+                        <i class="fa-solid fa-inbox"></i>
+                        <span>收件箱</span>
+                    </div>
+                    <span class="text-xs font-bold px-2 py-1 rounded-full" :class="currentTab==='inbox' ? 'bg-white text-primary' : 'bg-secondary text-muted'">{{ stats.unseen_count }}</span>
+                </div>
+                <div class="nav-item" :class="currentTab === 'drafts' ? 'active' : 'inactive'" @click="currentTab='drafts'; selectedItem=null">
+                    <div class="flex items-center gap-3">
+                        <i class="fa-solid fa-file-pen"></i>
+                        <span>回复草稿</span>
+                    </div>
+                    <span class="text-xs font-bold px-2 py-1 rounded-full" :class="currentTab==='drafts' ? 'bg-white text-primary' : 'bg-secondary text-muted'">{{ stats.ai_drafts_count }}</span>
+                </div>
+                <div class="nav-item inactive" @click="showLogs = !showLogs">
+                    <div class="flex items-center gap-3">
+                        <i class="fa-solid fa-clock-rotate-left"></i>
+                        <span>处理日志</span>
+                    </div>
+                    <i class="fa-solid" :class="showLogs ? 'fa-chevron-down' : 'fa-chevron-right'"></i>
+                </div>
+            </div>
+
+            <!-- 日志面板 -->
+            <div v-show="showLogs" class="bg-white rounded-xl p-3 card-shadow max-h-[200px] overflow-y-auto scrollbar-thin text-xs">
+                <div v-for="(log, i) in logs.slice(-50).reverse()" :key="i" class="py-1 border-b border-gray-50 last:border-0">
+                    <span class="text-muted">{{ log.time }}</span>
+                    <span :class="log.type === 'ok' ? 'text-success' : log.type === 'err' ? 'text-danger' : 'text-muted'">
+                        {{ log.msg }}
+                    </span>
+                </div>
+                <div v-if="logs.length === 0" class="text-muted text-center py-2">暂无日志</div>
+            </div>
+
+            <!-- 底部操作按钮 -->
+            <div class="mt-auto flex flex-col gap-3">
+                <button @click="triggerAutoProcess" :disabled="processing" class="btn-primary flex items-center justify-center gap-2">
+                    <i class="fa-solid" :class="processing ? 'fa-spinner animate-spin' : 'fa-wand-magic-sparkles'"></i>
+                    {{ processing ? '处理中...' : '一键处理未读邮件' }}
+                </button>
+                <button @click="refreshAll" class="btn-secondary flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-rotate"></i>
+                    刷新数据
+                </button>
+                <button @click="showAISettings = !showAISettings" class="btn-secondary flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-gear"></i>
+                    AI 配置
+                </button>
+            </div>
+
+            <!-- AI 配置弹窗 -->
+            <div v-if="showAISettings" class="fixed inset-0 bg-black/30 flex items-center justify-center z-50" @click.self="showAISettings=false">
+                <div class="bg-white rounded-2xl p-6 w-[480px] card-shadow">
+                    <h3 class="text-lg font-bold mb-4">AI 接口配置</h3>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="text-sm text-muted block mb-1">API Key</label>
+                            <input v-model="aiConfig.api_key" type="password" class="w-full bg-secondary rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20" placeholder="sk-...">
+                        </div>
+                        <div>
+                            <label class="text-sm text-muted block mb-1">API 地址</label>
+                            <input v-model="aiConfig.api_base" class="w-full bg-secondary rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20" placeholder="https://api.deepseek.com">
+                        </div>
+                        <div>
+                            <label class="text-sm text-muted block mb-1">模型名称</label>
+                            <input v-model="aiConfig.model" class="w-full bg-secondary rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20" placeholder="deepseek-chat">
+                        </div>
+                    </div>
+                    <div class="flex gap-3 mt-6">
+                        <button @click="showAISettings=false" class="btn-secondary flex-1">关闭</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========== 中央面板 ========== -->
+        <div class="flex-1 flex flex-col bg-white rounded-2xl card-shadow overflow-hidden">
+            <!-- 顶部操作栏 -->
+            <div class="p-6 border-b border-gray-100">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-3">
+                        <h1 class="text-2xl font-bold">{{ currentTab === 'inbox' ? '收件箱' : '回复草稿' }}</h1>
+                        <span v-if="!serverOnline" class="bg-danger/10 text-danger text-xs font-medium px-2 py-1 rounded-full">连接失败</span>
+                        <span v-else class="bg-success/10 text-success text-xs font-medium px-2 py-1 rounded-full">已连接</span>
+                    </div>
+                    <div class="flex gap-4">
+                        <span class="tab-btn" :class="currentTab==='inbox' ? 'active' : 'inactive'" @click="currentTab='inbox'; selectedItem=null">全部</span>
+                        <span class="tab-btn" :class="currentFilter==='unread' ? 'active' : 'inactive'" @click="currentFilter=currentFilter==='unread'?'all':'unread'">未读</span>
+                    </div>
+                </div>
+                <div class="relative">
+                    <i class="fa-solid fa-search absolute left-4 top-1/2 -translate-y-1/2 text-muted"></i>
+                    <input v-model="searchQuery" type="text" placeholder="搜索邮件主题或发件人..." class="w-full bg-secondary rounded-xl py-3 pl-11 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20">
+                </div>
+            </div>
+
+            <!-- 内容区 -->
+            <div class="flex-1 flex overflow-hidden">
+                <!-- 列表 -->
+                <div class="w-[380px] border-r border-gray-100 overflow-y-auto scrollbar-thin p-2">
+                    <!-- 加载状态 -->
+                    <div v-if="listLoading" class="flex items-center justify-center py-12">
+                        <div class="w-8 h-8 border-4 border-primary/30 border-t-primary rounded-full animate-spin"></div>
+                    </div>
+
+                    <!-- 空状态 -->
+                    <div v-else-if="filteredList.length === 0" class="flex flex-col items-center justify-center py-12 text-center">
+                        <div class="w-16 h-16 bg-secondary rounded-2xl flex items-center justify-center mb-4">
+                            <i class="fa-solid fa-inbox text-muted text-2xl"></i>
+                        </div>
+                        <p class="text-muted text-sm">{{ currentTab === 'inbox' ? '收件箱暂无邮件' : '草稿箱暂无AI生成的草稿' }}</p>
+                    </div>
+
+                    <!-- 邮件/草稿列表项 -->
+                    <div v-for="item in filteredList" :key="item.id || item.imap_id"
+                         @click="selectedItem = item"
+                         class="p-3 rounded-xl cursor-pointer transition-all duration-150 mb-1"
+                         :class="selectedItem?.id === item.id ? 'bg-primary/5 border border-primary/20' : 'hover:bg-secondary border border-transparent'">
+                        <div class="flex items-start justify-between mb-1">
+                            <span class="text-sm font-medium truncate max-w-[200px]">{{ item.from || item.to || '(未知)' }}</span>
+                            <span class="text-xs text-muted flex-shrink-0">{{ formatTime(item.date) }}</span>
+                        </div>
+                        <p class="text-sm font-semibold truncate mb-1">{{ item.subject }}</p>
+                        <p class="text-xs text-muted truncate">{{ item.body_preview }}</p>
+                        <div class="flex gap-2 mt-2">
+                            <span v-if="item.is_ai_generated" class="bg-primary/10 text-primary text-xs px-2 py-0.5 rounded-full">AI</span>
+                            <span v-if="item.is_read === false" class="bg-warning/10 text-warning text-xs px-2 py-0.5 rounded-full">未读</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 详情 -->
+                <div class="flex-1 overflow-y-auto scrollbar-thin p-6">
+                    <div v-if="!selectedItem" class="flex flex-col items-center justify-center h-full text-center">
+                        <div class="w-16 h-16 bg-secondary rounded-2xl flex items-center justify-center mb-4">
+                            <i class="fa-solid fa-envelope-open-text text-muted text-2xl"></i>
+                        </div>
+                        <p class="text-muted">选择一封邮件查看详情</p>
+                    </div>
+
+                    <div v-else class="h-full flex flex-col">
+                        <!-- 邮件头 -->
+                        <div class="mb-6">
+                            <h2 class="text-xl font-bold mb-3">{{ selectedItem.subject }}</h2>
+                            <div class="grid grid-cols-2 gap-3 text-sm">
+                                <div><span class="text-muted">发件人:</span> {{ selectedItem.from || '—' }}</div>
+                                <div><span class="text-muted">收件人:</span> {{ selectedItem.to || '—' }}</div>
+                                <div><span class="text-muted">时间:</span> {{ selectedItem.date || '—' }}</div>
+                                <div>
+                                    <span class="text-muted">标记:</span>
+                                    <span v-if="selectedItem.is_ai_generated" class="bg-primary/10 text-primary text-xs px-2 py-0.5 rounded-full ml-1">AI生成</span>
+                                    <span v-else class="bg-secondary text-muted text-xs px-2 py-0.5 rounded-full ml-1">普通</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 邮件正文 -->
+                        <div class="flex-1 bg-secondary rounded-xl p-4 overflow-y-auto scrollbar-thin text-sm leading-relaxed whitespace-pre-wrap">
+                            {{ selectedItem.body || '(无内容)' }}
+                        </div>
+
+                        <!-- 操作按钮（草稿模式下） -->
+                        <div v-if="currentTab === 'drafts'" class="flex gap-3 mt-4">
+                            <button @click="sendDraft(selectedItem)" class="flex-1 bg-success text-white rounded-xl py-3 font-medium hover:bg-success/90 transition-all flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-paper-plane"></i> 确认发送
+                            </button>
+                            <button @click="regenerateDraft(selectedItem)" class="flex-1 bg-warning text-white rounded-xl py-3 font-medium hover:bg-warning/90 transition-all flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-rotate"></i> 重新生成
+                            </button>
+                            <button @click="deleteDraft(selectedItem)" class="px-4 bg-danger/10 text-danger rounded-xl py-3 font-medium hover:bg-danger/20 transition-all flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========== 右侧 AI 聊天面板 ========== -->
+        <div class="w-[350px] flex flex-col bg-white rounded-2xl card-shadow overflow-hidden">
+            <!-- 顶部标题 -->
+            <div class="p-6 border-b border-gray-100">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-xl font-bold">AI 助手</h2>
+                    <div class="flex items-center gap-1 text-xs" :class="serverOnline ? 'text-success' : 'text-muted'">
+                        <span class="w-2 h-2 rounded-full" :class="serverOnline ? 'bg-success' : 'bg-muted'"></span>
+                        {{ serverOnline ? '在线' : '离线' }}
+                    </div>
+                </div>
+            </div>
+
+            <!-- 聊天消息区 -->
+            <div class="flex-1 p-6 overflow-y-auto scrollbar-thin flex flex-col gap-4" ref="chatBox">
+                <div v-for="(msg, i) in chatMessages" :key="i">
+                    <div v-if="msg.role === 'ai'" class="msg-ai">
+                        <p class="text-sm whitespace-pre-wrap">{{ msg.content }}</p>
+                        <p class="text-xs text-muted mt-2 text-right">{{ msg.time }}</p>
+                    </div>
+                    <div v-else class="msg-user">
+                        <p class="text-sm">{{ msg.content }}</p>
+                        <p class="text-xs text-white/70 mt-2 text-right">{{ msg.time }}</p>
+                    </div>
+                    <!-- 系统状态 -->
+                    <div v-if="msg.role === 'system'" class="flex items-center justify-center gap-2 text-sm mt-2" :class="msg.type === 'loading' ? 'text-muted' : 'text-success'">
+                        <i class="fa-solid" :class="msg.type === 'loading' ? 'fa-spinner animate-spin' : 'fa-check-circle'"></i>
+                        <span>{{ msg.content }}</span>
+                        <p class="text-xs text-muted">{{ msg.time }}</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 快捷操作 -->
+            <div class="px-6 pt-4 border-t border-gray-100">
+                <div class="flex flex-wrap gap-2 mb-4">
+                    <button @click="chatQuickAction('一键处理未读邮件')" class="bg-secondary text-dark text-xs font-medium rounded-lg px-3 py-2 hover:bg-secondary/80 transition-all">一键处理</button>
+                    <button @click="chatQuickAction('查看统计')" class="bg-secondary text-dark text-xs font-medium rounded-lg px-3 py-2 hover:bg-secondary/80 transition-all">查看统计</button>
+                    <button @click="chatQuickAction('刷新数据')" class="bg-secondary text-dark text-xs font-medium rounded-lg px-3 py-2 hover:bg-secondary/80 transition-all">刷新数据</button>
+                    <button @click="chatQuickAction('显示草稿列表')" class="bg-secondary text-dark text-xs font-medium rounded-lg px-3 py-2 hover:bg-secondary/80 transition-all">草稿列表</button>
+                </div>
+
+                <!-- 输入框 -->
+                <div class="relative pb-6">
+                    <input v-model="chatInput" @keyup.enter="sendChatMessage" type="text" placeholder="输入指令..." class="w-full bg-secondary rounded-xl py-3 pl-4 pr-12 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20">
+                    <button @click="sendChatMessage" class="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-primary rounded-full flex items-center justify-center text-white hover:bg-primary/90 transition-all">
+                        <i class="fa-solid fa-paper-plane text-xs"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const { createApp, ref, computed, watch, nextTick } = Vue;
+
+createApp({
+    setup() {
+        // ─── 响应式状态 ─────────────────────────────
+        const loading = ref(false);
+        const loadingText = ref('加载中...');
+        const processing = ref(false);
+        const serverOnline = ref(false);
+        const currentTab = ref('inbox');
+        const currentFilter = ref('all');
+        const searchQuery = ref('');
+        const showLogs = ref(false);
+        const showAISettings = ref(false);
+        const selectedItem = ref(null);
+        const chatInput = ref('');
+        const chatBox = ref(null);
+
+        const stats = ref({
+            unseen_count: 0,
+            inbox_total: 0,
+            drafts_count: 0,
+            ai_drafts_count: 0,
+            today_received: 0,
+        });
+
+        const emails = ref([]);
+        const drafts = ref([]);
+        const logs = ref([]);
+        const listLoading = ref(false);
+
+        const aiConfig = ref({
+            api_key: '',
+            api_base: 'https://api.deepseek.com',
+            model: 'deepseek-chat',
+        });
+
+        const chatMessages = ref([
+            { role: 'ai', content: '您好！我是您的邮件管理AI助手。我可以帮您：\n• 一键处理未读邮件\n• 查看统计信息\n• 管理回复草稿\n• 刷新邮件数据', time: getTimeStr() }
+        ]);
+
+        // ─── 计算属性 ─────────────────────────────
+        const filteredList = computed(() => {
+            let items = currentTab.value === 'inbox' ? emails.value : drafts.value;
+            if (searchQuery.value) {
+                const q = searchQuery.value.toLowerCase();
+                items = items.filter(i =>
+                    (i.subject || '').toLowerCase().includes(q) ||
+                    (i.from || i.to || '').toLowerCase().includes(q)
+                );
+            }
+            if (currentFilter.value === 'unread') {
+                items = items.filter(i => i.is_read === false);
+            }
+            return items;
+        });
+
+        // ─── API 调用 ─────────────────────────────
+        async function api(method, path, body = null) {
+            const opts = { method };
+            if (body) {
+                opts.headers = { 'Content-Type': 'application/json' };
+                opts.body = JSON.stringify(body);
+            }
+            try {
+                const resp = await fetch(path, opts);
+                return await resp.json();
+            } catch (e) {
+                serverOnline.value = false;
+                throw e;
+            }
+        }
+
+        function getTimeStr() {
+            return new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function addLog(msg, type = 'info') {
+            logs.value.push({ time: getTimeStr(), msg, type });
+        }
+
+        function chatSay(content, role = 'ai') {
+            chatMessages.value.push({ role, content, time: getTimeStr() });
+            nextTick(() => { if (chatBox.value) chatBox.value.scrollTop = chatBox.value.scrollHeight; });
+        }
+
+        // ─── 核心操作 ─────────────────────────────
+        async function checkHealth() {
+            try {
+                const resp = await api('GET', '/api/health');
+                serverOnline.value = resp.ok === true;
+            } catch {
+                serverOnline.value = false;
+            }
+        }
+
+        async function refreshStats() {
+            try {
+                const resp = await api('GET', '/api/stats');
+                if (resp.ok) stats.value = resp.data;
+            } catch (e) {
+                addLog('获取统计失败: ' + e.message, 'err');
+            }
+        }
+
+        async function refreshEmails() {
+            listLoading.value = true;
+            try {
+                const resp = await api('GET', '/api/emails');
+                if (resp.ok) {
+                    emails.value = resp.data;
+                    addLog(`收件箱: ${resp.data.length} 封邮件`, 'ok');
+                }
+            } catch (e) {
+                addLog('读取邮件失败: ' + e.message, 'err');
+            }
+            listLoading.value = false;
+        }
+
+        async function refreshDrafts() {
+            try {
+                const resp = await api('GET', '/api/drafts');
+                if (resp.ok) {
+                    drafts.value = resp.data;
+                    addLog(`草稿箱: ${resp.data.length} 封AI草稿`, 'ok');
+                }
+            } catch (e) {
+                addLog('读取草稿失败: ' + e.message, 'err');
+            }
+        }
+
+        async function refreshAll() {
+            loading.value = true;
+            loadingText.value = '正在刷新数据...';
+            await Promise.all([refreshStats(), refreshEmails(), refreshDrafts()]);
+            loading.value = false;
+            chatSay('数据已刷新。收件箱 ' + emails.value.length + ' 封邮件，AI草稿 ' + drafts.value.length + ' 封。');
+        }
+
+        async function triggerAutoProcess() {
+            processing.value = true;
+            chatSay('正在自动处理未读邮件...', 'system');
+            addLog('开始自动处理...', 'info');
+            try {
+                const resp = await api('POST', '/api/process-new');
+                if (resp.ok) {
+                    const data = resp.data;
+                    addLog(`处理完成: ${data.drafts_created} 封草稿`, 'ok');
+                    chatSay(`处理完成！共发现 ${data.emails_found} 封未读邮件，成功生成 ${data.drafts_created} 封回复草稿。请到「草稿箱」查看并确认发送。`);
+                    if (data.errors?.length) {
+                        addLog(`处理错误: ${data.errors.length} 个`, 'err');
+                        chatSay(`处理过程中有 ${data.errors.length} 个错误：\n${data.errors.slice(0,3).join('\n')}`);
+                    }
+                    await refreshAll();
+                } else {
+                    addLog('处理失败: ' + (resp.error || '未知错误'), 'err');
+                    chatSay('处理失败：' + (resp.error || '未知错误'));
+                }
+            } catch (e) {
+                addLog('处理异常: ' + e.message, 'err');
+                chatSay('处理出错：' + e.message);
+            }
+            processing.value = false;
+        }
+
+        async function sendDraft(item) {
+            if (!confirm('确认发送这封邮件？')) return;
+            loading.value = true;
+            loadingText.value = '正在发送...';
+            try {
+                const resp = await api('POST', '/api/send-draft', {
+                    to: item.to_email || item.to,
+                    subject: item.subject,
+                    body: item.body,
+                    draft_imap_id: item.imap_id,
+                });
+                if (resp.ok) {
+                    addLog(`已发送: ${item.subject}`, 'ok');
+                    chatSay(`邮件「${item.subject}」已成功发送！`);
+                    await refreshDrafts();
+                    selectedItem.value = null;
+                } else {
+                    addLog(`发送失败: ${resp.error}`, 'err');
+                    chatSay(`发送失败：${resp.error}`);
+                }
+            } catch (e) {
+                addLog('发送异常: ' + e.message, 'err');
+                chatSay('发送出错：' + e.message);
+            }
+            loading.value = false;
+        }
+
+        async function regenerateDraft(item) {
+            loading.value = true;
+            loadingText.value = 'AI重新生成中...';
+            try {
+                const resp = await api('POST', '/api/regenerate', {
+                    subject: item.subject.replace(/^Re:\s*/i, ''),
+                    body: item.body,
+                    sender: item.from || '',
+                });
+                if (resp.ok) {
+                    item.body = resp.data.reply_body;
+                    item.subject = resp.data.reply_subject;
+                    chatSay(`已重新生成回复草稿「${item.subject}」`);
+                    addLog(`重新生成: ${item.subject}`, 'ok');
+                } else {
+                    chatSay('重新生成失败：' + (resp.error || ''));
+                }
+            } catch (e) {
+                chatSay('重新生成出错：' + e.message);
+            }
+            loading.value = false;
+        }
+
+        async function deleteDraft(item) {
+            if (!confirm('确认删除这封草稿？')) return;
+            try {
+                const resp = await api('DELETE', `/api/drafts/${item.imap_id}`);
+                if (resp.ok) {
+                    addLog(`已删除草稿: ${item.subject}`, 'ok');
+                    drafts.value = drafts.value.filter(d => d.imap_id !== item.imap_id);
+                    selectedItem.value = null;
+                    chatSay(`草稿「${item.subject}」已删除`);
+                }
+            } catch (e) {
+                addLog('删除失败: ' + e.message, 'err');
+            }
+        }
+
+        // ─── AI 聊天 ─────────────────────────────
+        async function sendChatMessage() {
+            const text = chatInput.value.trim();
+            if (!text) return;
+            chatInput.value = '';
+            chatSay(text, 'user');
+
+            // 解析快速指令
+            const cmd = text.toLowerCase();
+            if (cmd.includes('处理') || cmd.includes('一键')) {
+                triggerAutoProcess();
+            } else if (cmd.includes('统计')) {
+                refreshStats();
+                chatSay(`当前统计：\n• 未读邮件: ${stats.value.unseen_count}\n• AI草稿: ${stats.value.ai_drafts_count}\n• 今日接收: ${stats.value.today_received}\n• 草稿总数: ${stats.value.drafts_count}`);
+            } else if (cmd.includes('刷新') || cmd.includes('更新')) {
+                refreshAll();
+            } else if (cmd.includes('草稿') || cmd.includes('列表')) {
+                currentTab.value = 'drafts';
+                chatSay(`草稿箱中共有 ${drafts.value.length} 封AI生成的草稿。`);
+            } else {
+                chatSay(`我支持以下指令：\n1. 「一键处理」- 自动处理未读邮件\n2. 「查看统计」- 显示邮箱统计\n3. 「刷新数据」- 刷新所有数据\n4. 「显示草稿列表」- 切换到草稿视图\n您也可以直接选择左侧的邮件进行操作。`);
+            }
+        }
+
+        function chatQuickAction(action) {
+            chatInput.value = action;
+            sendChatMessage();
+        }
+
+        function formatTime(dateStr) {
+            if (!dateStr) return '';
+            try {
+                const d = new Date(dateStr);
+                return d.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' }) + ' ' +
+                       d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+            } catch { return dateStr.slice(0, 10); }
+        }
+
+        // ─── 初始化 ─────────────────────────────
+        async function init() {
+            loading.value = true;
+            loadingText.value = '正在连接服务...';
+            await checkHealth();
+            if (serverOnline.value) {
+                await Promise.all([refreshStats(), refreshEmails(), refreshDrafts()]);
+                addLog('系统就绪', 'ok');
+            } else {
+                addLog('无法连接后端服务，请确保 api_server.py 已启动', 'err');
+            }
+            loading.value = false;
+        }
+
+        // 监听标签切换时自动刷新
+        watch(currentTab, (tab) => {
+            if (tab === 'drafts' && drafts.value.length === 0) refreshDrafts();
+            if (tab === 'inbox' && emails.value.length === 0) refreshEmails();
+        });
+
+        init();
+
+        return {
+            loading, loadingText, processing, serverOnline,
+            currentTab, currentFilter, searchQuery,
+            showLogs, showAISettings, selectedItem,
+            stats, emails, drafts, logs, listLoading,
+            aiConfig, chatMessages, chatInput, chatBox,
+            filteredList,
+            refreshAll, triggerAutoProcess,
+            sendDraft, regenerateDraft, deleteDraft,
+            sendChatMessage, chatQuickAction, formatTime,
+        };
+    }
+}).mount('#app');
+</script>
+</body>
+</html>

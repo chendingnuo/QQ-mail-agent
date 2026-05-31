@@ -1,0 +1,8 @@
+# QQ邮箱智能邮件处理系统
+# 零外部依赖！全部使用 Python 标准库 + requests
+# Python >= 3.7
+#
+# 只需确保 requests 已安装：
+#   pip install requests --break-system-packages
+#
+# 如果使用 AI 功能（DeepSeek/OpenAI），需要配置 API Key
